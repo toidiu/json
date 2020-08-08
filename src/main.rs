@@ -1,3 +1,8 @@
+use json;
+
 fn main() {
-    println!("Hello, world!");
+    // get input
+    let json = "true";
+    let out = json::JsonParser::parse(json);
+    println!("{:?}", out);
 }
