@@ -29,11 +29,18 @@ pub struct JsonParser<'a> {
 }
 
 impl<'a> JsonParser<'a> {
-    pub fn parse(json: &'a str) -> Result<Self, JsonError> {
-        let (json, result) = parse_bool(json)
-            .map(|(rest, result)| (rest, Value::Bool(result)))
-            .or_else(|e| Err(JsonError::ParseError(e.to_string())))?;
+    pub fn parse(mut json: &'a str) -> Result<Self, JsonError> {
+        let mut result: Value = Value::Null;
+        while json.len() > 0 {
+            let (tjson, tresult) = parse_bool(json)
+                .map(|(rest, result)| (rest, Value::Bool(result)))
+                .or_else(|e| Err(JsonError::ParseError(e.to_string())))?;
+
+            json = tjson;
+            result = tresult;
+        }
         println!("{:?}", result);
+        println!("{} {:?}", json, result);
         Ok(JsonParser {
             input: json,
             output: result,

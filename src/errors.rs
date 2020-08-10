@@ -21,7 +21,7 @@ pub enum JsonError {
 impl Error for JsonError {
     fn description(&self) -> &str {
         match self {
-            JsonError::ParseError(detail) => "generic parsing error: {:?}",
+            JsonError::ParseError(detail) => &detail,
         }
     }
 }
