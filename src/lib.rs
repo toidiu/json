@@ -49,9 +49,25 @@ impl<'a> JsonParser<'a> {
 }
 
 fn parse_value<'a>(input: &'a str) -> IResult<&'a str, f64> {
-    context("space", double)(input)
+    context("space", consume_space(double))(input)
 }
 
+fn consume_space<'a, O, E, F>(f: F) -> impl Fn(&'a str) -> IResult<&'a str, O, E>
+where
+    F: Fn(&'a str) -> IResult<&'a str, O, E>,
+    E: ParseError<&'a str>,
+{
+    map(
+        tuple((
+            parse_space, // ignore space
+            f,
+            parse_space, // ignore space
+        )),
+        |k| (k.1),
+    )
+}
+
+// ============ DONE ============
 fn parse_obj<'a>(i: &'a str) -> IResult<&'a str, HashMap<&str, f64>> {
     context(
         "object",
@@ -72,20 +88,17 @@ fn parse_obj<'a>(i: &'a str) -> IResult<&'a str, HashMap<&str, f64>> {
     )(i)
 }
 
-// ============ DONE ============
 fn parse_kv<'a>(i: &'a str) -> IResult<&'a str, (&str, f64)> {
     context(
         "key value",
         map(
             tuple((
-                parse_space, // ignore space
-                parse_string,
-                parse_space, // ignore space
+                consume_space(parse_string),
                 tag(":"),
-                parse_space, // ignore space
                 parse_value,
+                opt(tag(",")), // consume comma
             )),
-            |k| (k.1, k.5),
+            |k| (k.0, k.2),
         ),
     )(i)
 }
@@ -195,25 +208,37 @@ mod tests {
     }
 
     #[test]
-    fn test_kv() {
-        let json = " \"k\" : 4 ";
-        let out = parse_kv(json);
-        assert_eq!(out.unwrap().1, ("k", 4.0));
-    }
-
-    // #[test]
-    // fn test_object() {
-    //     let mut json = "{\"foo\":10}";
-    //     let mut out = parse_obj(json);
-    //     // assert_eq!(out.unwrap().1, {});
-    // }
-
-    #[test]
     fn test_array() {
-        let json = "[1,2]";
+        let json = "[ 1 , 2 ]";
         let out = parse_array(json);
         let res: Vec<f64> = vec![1.0, 2.0];
         assert_eq!(out.unwrap().1, res);
+    }
+
+    #[test]
+    fn test_kv() {
+        let json = " \"k\" : 4,";
+        let out = parse_kv(json).unwrap();
+        assert_eq!(out.0, "");
+        assert_eq!(out.1, ("k", 4.0));
+    }
+
+    #[test]
+    fn test_object() {
+        let json = "{\"foo\" :10 ,\"bar\":5}";
+        let out = parse_obj(json);
+        let mut res: HashMap<&str, f64> = HashMap::new();
+        res.insert("foo", 10.0);
+        res.insert("bar", 5.0);
+        assert_eq!(out.unwrap().1, res);
+    }
+
+    #[test]
+    fn test_consume_space() {
+        let json = "\n true ";
+        let parser = consume_space(parse_bool);
+        let out = parser(json);
+        assert_eq!(out.unwrap().1, true)
     }
 
     // #[test]
