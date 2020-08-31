@@ -36,16 +36,21 @@ use json_serde::Value::{Arr, Bool, Number, Obj, Str};
 
 #[derive(Debug)]
 pub struct JsonParser<'a> {
-    input: &'a [u8],
-    output: Vec<Value<'a>>,
+    input: &'a str,
+    pub output: Value<'a>,
 }
 
 impl<'a> JsonParser<'a> {
-    pub fn parse(json: &'a str) -> IResult<&'a str, bool> {
-        context(
-            "parse",
-            preceded(parse_space, delimited(parse_array, parse_bool, parse_array)),
-        )(json)
+    pub fn new(json: &'a str) -> Self {
+        let out = JsonParser::parse(json).unwrap();
+        JsonParser {
+            input: json,
+            output: out.1,
+        }
+    }
+
+    fn parse(json: &'a str) -> IResult<&'a str, Value> {
+        context("parse", parse_value)(json)
     }
 }
 
@@ -62,11 +67,6 @@ fn parse_value<'a>(input: &'a str) -> IResult<&'a str, Value> {
     )(input)
 }
 
-// fn parse_value<'a>(input: &'a str) -> IResult<&'a str, f64> {
-//     context("value", consume_space(double))(input)
-// }
-
-// ============ DONE ============
 fn consume_space<'a, O, E, F>(f: F) -> impl Fn(&'a str) -> IResult<&'a str, O, E>
 where
     F: Fn(&'a str) -> IResult<&'a str, O, E>,
@@ -292,12 +292,4 @@ mod tests {
         assert_eq!(out.0, "");
         assert_eq!(out.1, Obj(res));
     }
-
-    // #[test]
-    // fn test_parser() {
-    //     let json = " [true, false] ";
-    //     let out = JsonParser::parse(json);
-    //     println!("======={:?}", out);
-    //     assert_eq!(out.unwrap().1, true)
-    // }
 }
