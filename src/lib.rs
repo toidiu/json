@@ -282,10 +282,15 @@ mod tests {
 
     #[test]
     fn test_parse_value_obj() {
-        let json = "\n [1, true , 3, \"sss\"] \t ";
-        let out = parse_value(json);
-        let res: Vec<Value> = vec![Number(1.0), Bool(true), Number(3.0), Str("sss")];
-        assert_eq!(out.unwrap().1, Value::Arr(res));
+        let json = " { \"foo\" : 10 , \"bar\": [1, true] , \"baz\": \"sss\", } ";
+        let out = parse_value(json).unwrap();
+        let mut res = HashMap::new();
+        res.insert(Str("foo"), Number(10.0));
+        let vec: Vec<Value> = vec![Number(1.0), Bool(true)];
+        res.insert(Str("bar"), Arr(vec));
+        res.insert(Str("baz"), Str("sss"));
+        assert_eq!(out.0, "");
+        assert_eq!(out.1, Obj(res));
     }
 
     // #[test]
