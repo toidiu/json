@@ -49,21 +49,21 @@ impl<'a> JsonParser<'a> {
     }
 }
 
-fn fix_parse_value<'a>(input: &'a str) -> IResult<&'a str, Value> {
+fn parse_value<'a>(input: &'a str) -> IResult<&'a str, Value> {
     context(
         "value",
         alt((
             map(consume_space(parse_num), |v| Number(v)),
-            map(consume_space(parse_string), |v| Str(v)),
+            map(consume_space(parse_string), |v| v),
             map(consume_space(parse_bool), |v| Bool(v)),
-            // map(consume_space(parse_array), |v| Arr(fix_parse_value(v))),
+            map(consume_space(parse_array), |v| Arr(v)),
         )),
     )(input)
 }
 
-fn parse_value<'a>(input: &'a str) -> IResult<&'a str, f64> {
-    context("value", consume_space(double))(input)
-}
+// fn parse_value<'a>(input: &'a str) -> IResult<&'a str, f64> {
+//     context("value", consume_space(double))(input)
+// }
 
 // ============ DONE ============
 fn consume_space<'a, O, E, F>(f: F) -> impl Fn(&'a str) -> IResult<&'a str, O, E>
@@ -81,27 +81,27 @@ where
     )
 }
 
-fn parse_obj<'a>(i: &'a str) -> IResult<&'a str, HashMap<&str, f64>> {
-    context(
-        "object",
-        preceded(
-            char('{'),
-            terminated(
-                fold_many0(
-                    parse_kv,
-                    HashMap::new(),
-                    |mut acc: HashMap<_, _>, (k, v)| {
-                        acc.insert(k, v);
-                        acc
-                    },
-                ),
-                char('}'),
-            ),
-        ),
-    )(i)
-}
+// fn parse_obj<'a>(i: &'a str) -> IResult<&'a str, HashMap<&str, Value>> {
+//     context(
+//         "object",
+//         preceded(
+//             char('{'),
+//             terminated(
+//                 fold_many0(
+//                     parse_kv,
+//                     HashMap::new(),
+//                     |mut acc: HashMap<_, _>, (k, v)| {
+//                         acc.insert(k, v);
+//                         acc
+//                     },
+//                 ),
+//                 char('}'),
+//             ),
+//         ),
+//     )(i)
+// }
 
-fn parse_kv<'a>(i: &'a str) -> IResult<&'a str, (&str, f64)> {
+fn parse_kv<'a>(i: &'a str) -> IResult<&'a str, (Value, Value)> {
     context(
         "key value",
         map(
@@ -116,7 +116,7 @@ fn parse_kv<'a>(i: &'a str) -> IResult<&'a str, (&str, f64)> {
     )(i)
 }
 
-fn parse_array<'a>(i: &'a str) -> IResult<&'a str, Vec<f64>> {
+fn parse_array<'a>(i: &'a str) -> IResult<&'a str, Vec<Value>> {
     context(
         "array",
         preceded(
@@ -135,11 +135,14 @@ fn parse_num<'a>(input: &'a str) -> IResult<&'a str, f64> {
     context("number", double)(input)
 }
 
-fn parse_string<'a>(i: &'a str) -> IResult<&'a str, &'a str> {
+fn parse_string<'a>(i: &'a str) -> IResult<&'a str, Value> {
     // fn parse_string<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, &'a str, E> {
     context(
         "string",
-        preceded(char('\"'), cut(terminated(parse_str, char('\"')))),
+        map(
+            preceded(char('\"'), cut(terminated(parse_str, char('\"')))),
+            |v| Str(v),
+        ),
     )(i)
 }
 
@@ -205,9 +208,9 @@ mod tests {
     #[test]
     fn test_parse_string() {
         let json = "\"sss\\\"tttrrr\\ning\"";
-        let out: IResult<&str, &str> = parse_string(json);
+        let out = parse_string(json);
         let v = out.unwrap();
-        assert_eq!(v.1, r#"sss\"tttrrr\ning"#);
+        assert_eq!(v.1, Str(r#"sss\"tttrrr\ning"#));
     }
 
     #[test]
@@ -224,7 +227,7 @@ mod tests {
     fn test_parse_array() {
         let json = "[ 1 , 2 ]";
         let out = parse_array(json);
-        let res: Vec<f64> = vec![1.0, 2.0];
+        let res: Vec<Value> = vec![Number(1.0), Number(2.0)];
         assert_eq!(out.unwrap().1, res);
     }
 
@@ -233,18 +236,18 @@ mod tests {
         let json = " \"k\" : 4,";
         let out = parse_kv(json).unwrap();
         assert_eq!(out.0, "");
-        assert_eq!(out.1, ("k", 4.0));
+        assert_eq!(out.1, (Str("k"), Number(4.0)));
     }
 
-    #[test]
-    fn test_parse_object() {
-        let json = "{\"foo\" :10 ,\"bar\":5}";
-        let out = parse_obj(json);
-        let mut res: HashMap<&str, f64> = HashMap::new();
-        res.insert("foo", 10.0);
-        res.insert("bar", 5.0);
-        assert_eq!(out.unwrap().1, res);
-    }
+    // #[test]
+    // fn test_parse_object() {
+    //     let json = "{\"foo\" :10 ,\"bar\":5}";
+    //     let out = parse_obj(json);
+    //     let mut res: HashMap<&str, f64> = HashMap::new();
+    //     res.insert("foo", 10.0);
+    //     res.insert("bar", 5.0);
+    //     assert_eq!(out.unwrap().1, res);
+    // }
 
     #[test]
     fn test_consume_space() {
@@ -257,23 +260,23 @@ mod tests {
     #[test]
     fn test_parse_value() {
         let mut json = "\n 3 \t ";
-        let mut out = fix_parse_value(json);
+        let mut out = parse_value(json);
         assert_eq!(out.unwrap().1, Value::Number(3.0));
 
         json = "\n true \t ";
-        out = fix_parse_value(json);
+        out = parse_value(json);
         assert_eq!(out.unwrap().1, Value::Bool(true));
 
         json = "\n \"sss\" \t ";
-        out = fix_parse_value(json);
+        out = parse_value(json);
         assert_eq!(out.unwrap().1, Value::Str("sss"));
     }
 
     #[test]
     fn test_parse_value_arr() {
-        let json = "\n [1,2,3] \t ";
-        let out = fix_parse_value(json);
-        let res: Vec<Value> = vec![Number(1.0), Number(2.0), Number(3.0)];
+        let json = "\n [1, true , 3, \"sss\"] \t ";
+        let out = parse_value(json);
+        let res: Vec<Value> = vec![Number(1.0), Bool(true), Number(3.0), Str("sss")];
         assert_eq!(out.unwrap().1, Value::Arr(res));
     }
 
