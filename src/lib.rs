@@ -32,7 +32,7 @@ use std::str;
 
 use errors::JsonError;
 use json_serde::Value;
-use json_serde::Value::{Arr, Bool, Number, Str};
+use json_serde::Value::{Arr, Bool, Number, Obj, Str};
 
 #[derive(Debug)]
 pub struct JsonParser<'a> {
@@ -57,6 +57,7 @@ fn parse_value<'a>(input: &'a str) -> IResult<&'a str, Value> {
             map(consume_space(parse_string), |v| v),
             map(consume_space(parse_bool), |v| Bool(v)),
             map(consume_space(parse_array), |v| Arr(v)),
+            map(consume_space(parse_obj), |v| Obj(v)),
         )),
     )(input)
 }
@@ -81,25 +82,21 @@ where
     )
 }
 
-// fn parse_obj<'a>(i: &'a str) -> IResult<&'a str, HashMap<&str, Value>> {
-//     context(
-//         "object",
-//         preceded(
-//             char('{'),
-//             terminated(
-//                 fold_many0(
-//                     parse_kv,
-//                     HashMap::new(),
-//                     |mut acc: HashMap<_, _>, (k, v)| {
-//                         acc.insert(k, v);
-//                         acc
-//                     },
-//                 ),
-//                 char('}'),
-//             ),
-//         ),
-//     )(i)
-// }
+fn parse_obj<'a>(i: &'a str) -> IResult<&'a str, HashMap<Value, Value>> {
+    context(
+        "map",
+        preceded(
+            char('{'),
+            cut(terminated(
+                map(
+                    separated_list(preceded(parse_space, char(',')), parse_kv),
+                    |tuple_vec| tuple_vec.into_iter().map(|(k, v)| (k, v)).collect(),
+                ),
+                preceded(parse_space, char('}')),
+            )),
+        ),
+    )(i)
+}
 
 fn parse_kv<'a>(i: &'a str) -> IResult<&'a str, (Value, Value)> {
     context(
