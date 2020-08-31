@@ -82,33 +82,30 @@ where
     )
 }
 
-fn parse_obj<'a>(i: &'a str) -> IResult<&'a str, HashMap<Value, Value>> {
-    context(
-        "map",
-        preceded(
-            char('{'),
-            cut(terminated(
-                map(
-                    separated_list(preceded(parse_space, char(',')), parse_kv),
-                    |tuple_vec| tuple_vec.into_iter().map(|(k, v)| (k, v)).collect(),
-                ),
-                preceded(parse_space, char('}')),
-            )),
-        ),
-    )(i)
-}
-
 fn parse_kv<'a>(i: &'a str) -> IResult<&'a str, (Value, Value)> {
     context(
         "key value",
         map(
-            tuple((
-                consume_space(parse_string),
-                tag(":"),
-                parse_value,
-                opt(tag(",")), // consume comma
-            )),
+            tuple((consume_space(parse_string), tag(":"), parse_value)),
             |k| (k.0, k.2),
+        ),
+    )(i)
+}
+
+fn parse_obj<'a>(i: &'a str) -> IResult<&'a str, HashMap<Value, Value>> {
+    context(
+        "map",
+        preceded(
+            consume_space(char('{')),
+            terminated(
+                map(separated_list(char(','), parse_kv), |tuple_vec| {
+                    tuple_vec.into_iter().map(|(k, v)| (k, v)).collect()
+                }),
+                tuple((
+                    consume_space(opt(char(','))), // allow for optional ending comma
+                    consume_space(char('}')),
+                )),
+            ),
         ),
     )(i)
 }
@@ -117,8 +114,11 @@ fn parse_array<'a>(i: &'a str) -> IResult<&'a str, Vec<Value>> {
     context(
         "array",
         preceded(
-            char('['),
-            terminated(separated_list(tag(","), parse_value), char(']')),
+            consume_space(char('[')),
+            terminated(
+                separated_list(char(','), parse_value),
+                consume_space(char(']')),
+            ),
         ),
     )(i)
 }
@@ -230,21 +230,22 @@ mod tests {
 
     #[test]
     fn test_parse_kv() {
-        let json = " \"k\" : 4,";
+        let json = " \"k\" : 4";
         let out = parse_kv(json).unwrap();
         assert_eq!(out.0, "");
         assert_eq!(out.1, (Str("k"), Number(4.0)));
     }
 
-    // #[test]
-    // fn test_parse_object() {
-    //     let json = "{\"foo\" :10 ,\"bar\":5}";
-    //     let out = parse_obj(json);
-    //     let mut res: HashMap<&str, f64> = HashMap::new();
-    //     res.insert("foo", 10.0);
-    //     res.insert("bar", 5.0);
-    //     assert_eq!(out.unwrap().1, res);
-    // }
+    #[test]
+    fn test_parse_object() {
+        let json = " { \"foo\" : 10 , \"bar\": true , } ";
+        let out = parse_obj(json).unwrap();
+        let mut res = HashMap::new();
+        res.insert(Str("foo"), Number(10.0));
+        res.insert(Str("bar"), Bool(true));
+        assert_eq!(out.0, "");
+        assert_eq!(out.1, res);
+    }
 
     #[test]
     fn test_consume_space() {
