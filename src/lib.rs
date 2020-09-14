@@ -144,7 +144,7 @@ fn parse_string<'a>(i: &'a str) -> IResult<&'a str, Value> {
 }
 
 fn parse_str<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, &'a str, E> {
-    escaped(alphanumeric1, '\\', one_of("\"n\\"))(i)
+    escaped(alphanumeric1, '\\', one_of(r#"\"n\\"#))(i)
 }
 
 fn parse_bool(input: &str) -> IResult<&str, bool> {
